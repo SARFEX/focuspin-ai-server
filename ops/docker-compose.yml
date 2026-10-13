@@ -1,0 +1,52 @@
+# focuspin-ai-server: прод-конфигурация для одного VPS.
+#
+# Все пути в этом файле относительно КОРНЯ репозитория — запускайте из корня:
+#   cp .env.example .env        # и заполните HMAC_SECRET / DEEPSEEK_API_KEY
+#   docker compose --project-directory . -f ops/docker-compose.yml up -d --build
+#
+# В .env БД лучше держать в томе: DATABASE_PATH=/data/focuspin.db
+# (ниже environment переопределяет это значение принудительно).
+#
+# TLS/прокси: либо сервис caddy ниже (docker compose --profile caddy up -d),
+# либо Cloudflare Tunnel (см. ops/DEPLOY.md). Порт публикуется только на
+# 127.0.0.1 — наружу 8080 не торчит никогда.
+
+services:
+  focuspin-ai-server:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile
+    env_file: .env
+    environment:
+      # БД на смонтированном томе: ./data на хосте -> /data в контейнере.
+      DATABASE_PATH: /data/focuspin.db
+      # За Caddy бекенду нужно доверять X-Forwarded-For (иначе лимиты вяжутся к IP прокси).
+      TRUST_PROXY: "true"
+    volumes:
+      # Bind-маунт: Docker создаст ./data от root — заранее отдайте его uid bun (1000),
+      # иначе контейнер не сможет создать SQLite-файл:
+      #   mkdir -p data && sudo chown 1000:1000 data
+      - ./data:/data
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  # Опциональный TLS-прокси (профиль caddy): терминирует HTTPS, раздаёт сертификаты ACME.
+  # Caddyfile — копия ops/Caddyfile.example с вашим доменом.
+  caddy:
+    image: caddy:2
+    profiles: ["caddy"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/Caddyfile.example:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - focuspin-ai-server
+
+volumes:
+  caddy_data:
+  caddy_config:
