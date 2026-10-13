@@ -101,7 +101,6 @@ async function main(): Promise<number> {
       LIMIT_FRESH_DEVICE_HOURS: '24',
       LIMIT_FRESH_DEVICE_DAY: '15',
       LIMIT_CONTRACT_FAILS_PER_HOUR: '10',
-      ADMIN_TOKEN,
     },
     stdout: 'pipe',
     stderr: 'pipe',
